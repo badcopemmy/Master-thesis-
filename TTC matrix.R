@@ -1,3 +1,4 @@
+#HEJ
 
 data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_2021.xlsx")
 head(data)

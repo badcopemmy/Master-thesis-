@@ -42,8 +42,24 @@ orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_202
     data$rating <- random_ratings
     head(data)
 
-#####################  Preparing for regression analysis  ############################ 
+    
+    
+    
 
+#####################  MV analysis  ################################     
+
+X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006)
+X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999)
+mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)    
+
+#Outliers
+#Plots
+#Correlation
+
+
+    
+#####################  Lasso regression  ############################ 
+#Prepare data
     # Split the data into subsets containing only one rating category
     rating_sub <- split(data, data$rating)
     rating_sub[1]
@@ -58,33 +74,53 @@ orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_202
       print(avg_pd)
     })
     
-
     # Calculate the difference in the "pd" column between consecutive values for each dataset
-    pd_diffs <- lapply(average_pd, function(avg_pd) {
+    pd_diff_list <- lapply(average_pd, function(avg_pd) {
       avg_pd$pd_diff <- c(NA, diff(avg_pd$pd))
       return(avg_pd)
     })
-    
     #View the results
-    pd_diffs
+    pd_diff_list
+    
+    # Remove rows with NA values for each dataset in the list
+    pd_diff_list<- lapply(pd_diff_list, na.omit)
+    pd_diff_list
 
-#Lasso regression
-X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006)
-X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999)
-mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)
-cv_model <- cv.glmnet(mv_matrix, pd_diffs, alpha = 1)
-best_lambda <- cv_model$lambda.min
-plot(cv_model) 
-lasso_model <- glmnet(mv_matrix, pd_diffs, alpha = 1, lambda = best_lambda)
-coef(lasso_model) #If zero coefficient, it would just be a dot.
-  #Predictions
-  X1 <- c(0.01, 0.04, 0.01, 0.001, 0.0009)
-  X2 <- c(-0.01, -0.051, -0.01, 0.4, -0.09)
-  new_data <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)  # Prepare your new data
-  predictions <- predict(lasso_model, newx = new_data, s = best_lambda)
-  print(predictions)
+# Define a function to perform lasso regression for each dataset
+lasso_regression <- function(dataset, mv_matrix) {
+  # Extract the "pd-diffs" column from the dataset
+  pd_diffs <- dataset[["pd_diff"]]
+  cv_model <- cv.glmnet(mv_matrix, pd_diffs, alpha = 1)
+  best_lambda <- cv_model$lambda.min
+  lasso_model <- glmnet(mv_matrix, pd_diffs, alpha = 1, lambda = best_lambda)
+  return(lasso_model)
+}
+# Apply the function for each dataset in the list pd_diff_list
+lasso_models <- lapply(pd_diff_list, function(dataset) {
+  lasso_regression(dataset, mv_matrix)
+})
+
+#Extract relevant info from the resulting models
+extract_values <- function(model) {
+  return(list(model = model, coefficients = coef(model))) # Return both the model and its coefficients
+  }
+result <- lapply(lasso_models, extract_values)
+# View the extracted values for the first model in the list
+print(result[[2]])
 
 
+
+##################################  Predictions  ############################ 
+#Predictions for 6 years ahead. X1 and X2 represent expected change in macros.
+  X1 <- c(0.01, 0.04, 0.01, 0.001, 0.1, 0.03)
+  X2 <- c(-0.01, -0.051, -0.01, 0.4, -0.09, -0.1)
+  new_data <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE) 
   
-#####################################  Start over  #########################
+  predicted_responses <- lapply(lasso_models, function(model) {
+    predict(model, newx = new_data, s = model$lambda)
+  })
+  
+  predicted_responses
+  
+################################################################################
 rm(list=ls())

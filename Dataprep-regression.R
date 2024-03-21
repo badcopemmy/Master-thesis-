@@ -3,7 +3,7 @@ library(dplyr)
 library(glmnet)
 
 #####################  Loading and preparing data  ############################ 
-orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_2021.xlsx")
+orig_data <- read_excel("Data_excel.xlsx")
   head(orig_data)
   summary(orig_data)
   sum(is.na(orig_data)) #Check if any values are NA
@@ -35,15 +35,6 @@ orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_202
     data <- training_set #rename
     data <- subset(data, select = -group) #delete group column
     head(data)
-
-#add fake ratings
-    num_rows <- nrow(data)
-    random_ratings <- sample(c("A", "B", "C"), num_rows, replace = TRUE)
-    data$rating <- random_ratings
-    head(data)
-
-    
-    
     
 
 #####################  MV analysis  ################################     
@@ -51,6 +42,7 @@ orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_202
 X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006)
 X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999)
 mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)    
+mv_matrix
 
 #Outliers
 #Plots
@@ -61,31 +53,15 @@ mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)
 #####################  Lasso regression  ############################ 
 #Prepare data
     # Split the data into subsets containing only one rating category
+    rating_count <- rating_counts <- table(data$rating)
+    rating_count
     rating_sub <- split(data, data$rating)
     rating_sub[1]
-    # Calculate average PD for each unique date in each dataset in rating_sub. 
-    average_pd <- lapply(rating_sub, function(dataset) {
-      # Aggregate PD by date
-      avg_pd <- aggregate(pd ~ date, data = dataset, FUN = mean, na.rm = TRUE)
-      return(avg_pd)
-    })
-    # print resulting average pd list
-    lapply(average_pd, function(avg_pd) {
-      print(avg_pd)
-    })
-    
-    # Calculate the difference in the "pd" column between consecutive values for each dataset
-    pd_diff_list <- lapply(average_pd, function(avg_pd) {
-      avg_pd$pd_diff <- c(NA, diff(avg_pd$pd))
-      return(avg_pd)
-    })
-    #View the results
-    pd_diff_list
-    
-    # Remove rows with NA values for each dataset in the list
-    pd_diff_list<- lapply(pd_diff_list, na.omit)
-    pd_diff_list
-
+    head(data)
+    #Delete all US obs
+    data <- data[data$rating != "US", ]
+    head(data)
+  
 # Define a function to perform lasso regression for each dataset
 lasso_regression <- function(dataset, mv_matrix) {
   # Extract the "pd-diffs" column from the dataset

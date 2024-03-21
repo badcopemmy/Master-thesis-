@@ -3,7 +3,7 @@ library(dplyr)
 library(glmnet)
 
 #####################  Loading and preparing data  ############################ 
-orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_2021.xlsx")
+orig_data <- read_excel("Data_excel.xlsx")
   head(orig_data)
   summary(orig_data)
   sum(is.na(orig_data)) #Check if any values are NA
@@ -50,7 +50,22 @@ orig_data <- read_excel("/Users/Emmy/Desktop/exjobb danskebank/Data/TTC_DATA_202
 
 X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006)
 X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999)
-mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)    
+mv_df <- data.frame(X1, X2)
+
+nbr_lags = 3  #Define number of lags 
+lags <- 1:nbr_lags 
+
+lag_multiple <- function(x, n_vec){
+  map(n_vec, lag, x = x) %>% 
+    set_names(paste0("lag", n_vec)) 
+}
+
+lagged_macro <- cbind(mv_df, lag_multiple(mv_df, lags))
+head(lagged_macro)
+
+#Gör om till matrix för att kunna stoppa in i Lasso!
+#mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)   
+
 
 #Outliers
 #Plots

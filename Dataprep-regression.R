@@ -6,6 +6,8 @@ library(glmnet)
 orig_data <- read_excel("Data_excel.xlsx")
   head(orig_data)
   summary(orig_data)
+  orig_data$pd <- as.numeric(orig_data$pd)
+  summary(orig_data)
   sum(is.na(orig_data)) #Check if any values are NA
   
 #Create a smaller subset to be able to run the code faster...
@@ -39,11 +41,13 @@ orig_data <- read_excel("Data_excel.xlsx")
 
 #####################  MV analysis  ################################     
 
-X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006)
-X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999)
-mv_matrix <- matrix(c(X1, X2), nrow = length(X1), byrow = TRUE)    
-mv_matrix
-
+data$def <- ifelse(data$rating == "C4-2", 1, 0)
+    head(data)
+    
+X1 <- c(0.03, 0.01, 0.03, 0.002, 0.006, -0.3)
+X2 <- c(-0.02, 0.051, 0.0222, -0.044, -0.0999, -0.1)
+X3 <- c(-0.01, 0.1, -0.1, -0.2, -0.01, 0.3)
+#mv_matrix <- matrix(c(X1, X2, X3), nrow = length(X1), byrow = TRUE)    
 #Outliers
 #Plots
 #Correlation
@@ -52,29 +56,55 @@ mv_matrix
     
 #####################  Lasso regression  ############################ 
 #Prepare data
-    # Split the data into subsets containing only one rating category
-    rating_count <- rating_counts <- table(data$rating)
-    rating_count
-    rating_sub <- split(data, data$rating)
-    rating_sub[1]
-    head(data)
     #Delete all US obs
     data <- data[data$rating != "US", ]
+   
+
+    #Order dates and create obr_nbr column to match macro entries
+    obs_dates <- unique(data$date) #The number of unique observation dates
+    rank_values <- rank(obs_dates, ties.method = "min")
+    data$obs_nbr <- rank_values[match(data$date, obs_dates)]
     head(data)
+    tail(data)
+   
+    
+    #Add macros to matching dates
+      #Create function that matches values
+      extract_value <- function(obs_number, vector) {
+        return(vector[obs_number])
+        }
+      #Apply to all Xi
+      for (i in 1:3) {  # Replace 3 with the total number of vectors you have
+        col_name <- paste0("X", i)
+        data[[col_name]] <- sapply(data$obs_nbr, function(x) extract_value(x, get(col_name)))
+        }
+      head(data)
+      tail(data)
   
-# Define a function to perform lasso regression for each dataset
-lasso_regression <- function(dataset, mv_matrix) {
-  # Extract the "pd-diffs" column from the dataset
-  pd_diffs <- dataset[["pd_diff"]]
-  cv_model <- cv.glmnet(mv_matrix, pd_diffs, alpha = 1)
-  best_lambda <- cv_model$lambda.min
-  lasso_model <- glmnet(mv_matrix, pd_diffs, alpha = 1, lambda = best_lambda)
-  return(lasso_model)
-}
-# Apply the function for each dataset in the list pd_diff_list
-lasso_models <- lapply(pd_diff_list, function(dataset) {
-  lasso_regression(dataset, mv_matrix)
-})
+############################ Lasso regression
+    #Extract the correct matrices and vectors for lasso input
+    respons <- as.matrix(R2[, "def"])
+    respons
+    mean(respons)
+    predictors <- as.matrix(R1[, c("pd", "X1", "X2", "X3")])
+    cv_model <- cv.glmnet(predictors, respons, family = "binomial", alpha = 1)
+    best_lambda <- cv_model$lambda.min
+    lasso_model <- glmnet(predictors, respons, family = "binomial", alpha = 1, lambda = best_lambda)   
+    coef(lasso_model)  
+#############################
+    
+#Define a function to perform lasso regression for each dataset
+  lasso_regression <- function(df) {
+    # Extract the "pd-diffs" column from the dataset
+    respons <- as.matrix(df[[, "def"]])
+    predictors <- as.matrix(df[[, c("pd", "X1", "X2", "X3")]])
+    cv_model <- cv.glmnet(predictors, respons, family = "binomial", alpha = 1)
+    best_lambda <- cv_model$lambda.min
+    lasso_model <- glmnet(predictors, respons, family = "binomial", alpha = 1, lambda = best_lambda)
+    return(lasso_model)
+  }
+  #Apply to all rating groups
+  lasso_results <- lapply(rating_sub, lasso_regression)
 
 #Extract relevant info from the resulting models
 extract_values <- function(model) {
